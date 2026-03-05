@@ -21,7 +21,8 @@ os.environ["SIMILARITY_THRESHOLD"] = "0.7"
 # Now import the module under test - mocks are already in place globally from conftest
 from document_processor.document_processor import (
     handler, get_gemini_api_key, get_postgres_credentials, get_postgres_connection,
-    embed_query, embed_documents, get_document_loader, chunk_documents, process_document
+    embed_query, embed_documents, get_document_loader, chunk_documents, process_document,
+    EmbeddingError, EMBEDDING_MAX_RETRIES
 )
 
 class TestDocumentProcessor(unittest.TestCase):
@@ -333,8 +334,32 @@ class TestDocumentProcessor(unittest.TestCase):
             unittest.mock.ANY  # We don't need to check the exact values here
         )
         
-        # Verify chunk insertions
-        self.assertEqual(mock_cursor.execute.call_count, 3)  # 1 for document + 2 for chunks
+        # Verify chunk insertions: 1 document insert + 2 chunk inserts + 1
+        # status update ('processing' -> 'processed').
+        self.assertEqual(mock_cursor.execute.call_count, 4)
+
+    @patch("document_processor.document_processor.time.sleep")
+    def test_embed_query_raises_after_retries(self, mock_sleep):
+        """Test embed_query raises EmbeddingError instead of storing a zero-vector."""
+        self.mock_client.models.embed_content.side_effect = Exception("API unavailable")
+
+        with self.assertRaises(EmbeddingError):
+            embed_query("Some chunk text")
+
+        self.assertEqual(
+            self.mock_client.models.embed_content.call_count, EMBEDDING_MAX_RETRIES
+        )
+
+    @patch("document_processor.document_processor.time.sleep")
+    def test_embed_query_raises_on_empty_vector(self, mock_sleep):
+        """Test embed_query treats an empty embedding as a failure."""
+        mock_result = MagicMock()
+        mock_result.embeddings = [MagicMock()]
+        mock_result.embeddings[0].values = []
+        self.mock_client.models.embed_content.return_value = mock_result
+
+        with self.assertRaises(EmbeddingError):
+            embed_query("Some chunk text")
 
     def test_handler_healthcheck(self):
         """Test the Lambda handler for a health check."""

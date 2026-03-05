@@ -4,6 +4,7 @@ Extracts text from documents, chunks it, creates embeddings, and stores in Postg
 """
 import os
 import json
+import time
 import boto3
 import logging
 import tempfile
@@ -45,6 +46,15 @@ TOP_P = float(os.environ.get('TOP_P'))
 SIMILARITY_THRESHOLD = float(os.environ.get('SIMILARITY_THRESHOLD'))
 GEMINI_EMBEDDING_MODEL = "text-embedding-004"
 
+# Embedding retry configuration
+EMBEDDING_MAX_RETRIES = int(os.environ.get('EMBEDDING_MAX_RETRIES', '3'))
+EMBEDDING_RETRY_DELAY = float(os.environ.get('EMBEDDING_RETRY_DELAY', '1.0'))
+
+
+class EmbeddingError(Exception):
+    """Raised when a text embedding could not be generated."""
+    pass
+
 
 def get_gemini_api_key():
     """
@@ -82,18 +92,35 @@ def embed_documents(texts: List[str]) -> List[List[float]]:
 def embed_query(text: str) -> List[float]:
     """
     Embed text using Gemini and return a flat list of floats for pgvector.
+
+    Transient failures are retried with a short backoff. If an embedding still
+    cannot be produced, an EmbeddingError is raised rather than returning a
+    zero-vector: storing a zero-vector would silently corrupt semantic search
+    for that chunk.
     """
-    try:
-        result = client.models.embed_content(
-            model=GEMINI_EMBEDDING_MODEL,
-            contents=text,
-            config=types.EmbedContentConfig(task_type="SEMANTIC_SIMILARITY")
-        )
-        # Access the first embedding object and return its .values
-        return list(result.embeddings[0].values)
-    except Exception as e:
-        logger.error(f"Error creating embedding: {str(e)}")
-        return [0.0] * 768
+    last_error = None
+    for attempt in range(1, EMBEDDING_MAX_RETRIES + 1):
+        try:
+            result = client.models.embed_content(
+                model=GEMINI_EMBEDDING_MODEL,
+                contents=text,
+                config=types.EmbedContentConfig(task_type="SEMANTIC_SIMILARITY")
+            )
+            # Access the first embedding object and return its .values
+            values = list(result.embeddings[0].values)
+            if not values:
+                raise EmbeddingError("Embedding API returned an empty vector")
+            return values
+        except Exception as e:
+            last_error = e
+            logger.warning(
+                f"Embedding attempt {attempt}/{EMBEDDING_MAX_RETRIES} failed: {str(e)}"
+            )
+            if attempt < EMBEDDING_MAX_RETRIES:
+                time.sleep(EMBEDDING_RETRY_DELAY * attempt)
+
+    logger.error(f"Embedding failed after {EMBEDDING_MAX_RETRIES} attempts: {str(last_error)}")
+    raise EmbeddingError(str(last_error))
 
 
 def get_postgres_credentials():
@@ -283,6 +310,8 @@ def process_document(bucket: str, key: str, document_id: str, user_id: str, mime
         s3_client.download_file(bucket, key, temp_file.name)
         file_path = temp_file.name
     
+    conn = None
+    cursor = None
     try:
         # Load document using appropriate loader
         loader = get_document_loader(file_path, mime_type)
@@ -313,16 +342,16 @@ def process_document(bucket: str, key: str, document_id: str, user_id: str, mime
             user_id,
             file_name,
             mime_type,
-            'processed',
+            'processing',
             bucket,
             key,
             datetime.now(),
             datetime.now()
         ))
-        
+
         # Commit the transaction
         conn.commit()
-        
+
         # Store chunks with embeddings in PostgreSQL
         chunk_ids = []
         for chunk in chunks:
@@ -353,15 +382,38 @@ def process_document(bucket: str, key: str, document_id: str, user_id: str, mime
                 datetime.now()
             ))
         
-        # Commit the transaction
+        # Mark the document as fully processed now that every chunk was stored
+        cursor.execute(
+            "UPDATE documents SET status = %s, updated_at = %s WHERE document_id = %s AND user_id = %s",
+            ('processed', datetime.now(), document_id, user_id)
+        )
         conn.commit()
-        
+
         return len(chunks), chunk_ids
-        
+
     except Exception as e:
-        logger.error(f"Error processing document: {str(e)}")
+        logger.error(f"Error processing document {document_id}: {str(e)}")
+        # Best-effort: mark the document as 'failed' so it is never left looking
+        # 'processing' forever, nor falsely 'processed' with missing chunks.
+        if conn is not None and cursor is not None:
+            try:
+                conn.rollback()
+                cursor.execute(
+                    "UPDATE documents SET status = %s, updated_at = %s WHERE document_id = %s AND user_id = %s",
+                    ('failed', datetime.now(), document_id, user_id)
+                )
+                conn.commit()
+            except Exception as mark_err:
+                logger.error(f"Could not mark document {document_id} as failed: {str(mark_err)}")
         raise e
     finally:
+        # Close the database connection (Lambda reuses the execution environment)
+        if conn is not None:
+            try:
+                cursor.close()
+                conn.close()
+            except Exception:
+                pass
         # Clean up temporary file
         try:
             os.unlink(file_path)

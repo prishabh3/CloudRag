@@ -44,6 +44,15 @@ MCP_TIMEOUT = int(os.environ.get('MCP_TIMEOUT', '60'))
 RAG_CONFIDENCE_THRESHOLD = float(os.environ.get('RAG_CONFIDENCE_THRESHOLD', '0.7'))
 MIN_CONTEXT_LENGTH = int(os.environ.get('MIN_CONTEXT_LENGTH', '100'))
 
+# Embedding retry configuration
+EMBEDDING_MAX_RETRIES = int(os.environ.get('EMBEDDING_MAX_RETRIES', '3'))
+EMBEDDING_RETRY_DELAY = float(os.environ.get('EMBEDDING_RETRY_DELAY', '1.0'))
+
+
+class EmbeddingError(Exception):
+    """Raised when a text embedding could not be generated."""
+    pass
+
 # Get Gemini API key from Secrets Manager
 def get_gemini_api_key():
     try:
@@ -264,16 +273,34 @@ class StatelessMCPClient:
 
 # Function to embed query using Gemini model
 def embed_query(text: str) -> List[float]:
-    try:
-        result = client.models.embed_content(
-            model=GEMINI_EMBEDDING_MODEL,
-            contents=text,
-            config=types.EmbedContentConfig(task_type="SEMANTIC_SIMILARITY")
-        )
-        return list(result.embeddings[0].values)
-    except Exception as e:
-        logger.error(f"Error generating embedding: {str(e)}")
-        return [0.0] * 768
+    """
+    Embed a query using Gemini, retrying transient failures with a short
+    backoff. Raises EmbeddingError if no embedding can be produced: running a
+    similarity search with a zero-vector would return meaningless "matches"
+    and produce a confident but unfounded answer.
+    """
+    last_error = None
+    for attempt in range(1, EMBEDDING_MAX_RETRIES + 1):
+        try:
+            result = client.models.embed_content(
+                model=GEMINI_EMBEDDING_MODEL,
+                contents=text,
+                config=types.EmbedContentConfig(task_type="SEMANTIC_SIMILARITY")
+            )
+            values = list(result.embeddings[0].values)
+            if not values:
+                raise EmbeddingError("Embedding API returned an empty vector")
+            return values
+        except Exception as e:
+            last_error = e
+            logger.warning(
+                f"Embedding attempt {attempt}/{EMBEDDING_MAX_RETRIES} failed: {str(e)}"
+            )
+            if attempt < EMBEDDING_MAX_RETRIES:
+                time.sleep(EMBEDDING_RETRY_DELAY * attempt)
+
+    logger.error(f"Embedding failed after {EMBEDDING_MAX_RETRIES} attempts: {str(last_error)}")
+    raise EmbeddingError(str(last_error))
 
 # Function to fetch Postgres credentials from AWS Secrets Manager
 def get_postgres_credentials():
@@ -654,7 +681,17 @@ def handler(event, context):
             mcp_client = StatelessMCPClient(mcp_server_url, MCP_TIMEOUT)
 
         # Step 1: Traditional RAG
-        query_embedding = embed_query(query)
+        try:
+            query_embedding = embed_query(query)
+        except EmbeddingError as e:
+            logger.error(f"Query embedding failed: {str(e)}")
+            return {
+                'statusCode': 503,
+                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'body': json.dumps({
+                    'message': 'Could not generate an embedding for the query. Please try again shortly.'
+                })
+            }
         relevant_chunks = similarity_search(query_embedding, user_id)
         
         # Step 2: Assess RAG quality

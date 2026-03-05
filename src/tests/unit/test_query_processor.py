@@ -22,7 +22,8 @@ MODEL_NAME = "gemini-2.0-flash"
 # Now import the module under test - mocks are already in place globally from conftest
 from query_processor.query_processor import (
     handler, get_gemini_api_key, get_postgres_credentials, get_postgres_connection,
-    embed_query, similarity_search, generate_response, DecimalEncoder
+    embed_query, similarity_search, generate_response, DecimalEncoder,
+    EmbeddingError, EMBEDDING_MAX_RETRIES
 )
 
 class TestQueryProcessor(unittest.TestCase):
@@ -135,6 +136,31 @@ class TestQueryProcessor(unittest.TestCase):
         # Verify results
         self.assertEqual(result, [0.1, 0.2, 0.3])
         mock_client.models.embed_content.assert_called_once()
+
+    @patch("query_processor.query_processor.time.sleep")
+    @patch("query_processor.query_processor.client")
+    def test_embed_query_raises_after_retries(self, mock_client, mock_sleep):
+        """Test that embed_query raises EmbeddingError (not a zero-vector) after retries."""
+        mock_client.models.embed_content.side_effect = Exception("API unavailable")
+
+        with self.assertRaises(EmbeddingError):
+            embed_query("Test query")
+
+        # It should retry the configured number of times before giving up.
+        self.assertEqual(
+            mock_client.models.embed_content.call_count, EMBEDDING_MAX_RETRIES
+        )
+
+    @patch("query_processor.query_processor.embed_query")
+    def test_handler_embedding_failure(self, mock_embed):
+        """Test the handler returns a clear 503 when query embedding fails."""
+        mock_embed.side_effect = EmbeddingError("embedding service down")
+        event = {"body": json.dumps({"query": "What is RAG?", "user_id": "user-1"})}
+
+        response = handler(event, {})
+
+        self.assertEqual(response["statusCode"], 503)
+        self.assertIn("embedding", json.loads(response["body"])["message"].lower())
 
     @patch("query_processor.query_processor.get_postgres_credentials")
     @patch("query_processor.query_processor.get_postgres_connection")
