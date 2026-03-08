@@ -361,6 +361,26 @@ class TestDocumentProcessor(unittest.TestCase):
         with self.assertRaises(EmbeddingError):
             embed_query("Some chunk text")
 
+    def test_embedding_model_is_configurable(self):
+        """Regression: the embedding model must come from GEMINI_EMBEDDING_MODEL,
+        not be hardcoded. Otherwise ingestion and query can use different models,
+        producing incompatible vectors and broken similarity search."""
+        import document_processor.document_processor as dp
+        self.assertEqual(dp.GEMINI_EMBEDDING_MODEL, "test-embedding-model")
+
+    def test_embed_query_uses_configured_model(self):
+        """Test embed_query calls Gemini with the configured embedding model."""
+        import document_processor.document_processor as dp
+        mock_result = MagicMock()
+        mock_result.embeddings = [MagicMock()]
+        mock_result.embeddings[0].values = [0.1, 0.2, 0.3]
+        self.mock_client.models.embed_content.return_value = mock_result
+
+        embed_query("Some chunk text")
+
+        _, kwargs = self.mock_client.models.embed_content.call_args
+        self.assertEqual(kwargs["model"], dp.GEMINI_EMBEDDING_MODEL)
+
     def test_handler_healthcheck(self):
         """Test the Lambda handler for a health check."""
         # Create a health check event

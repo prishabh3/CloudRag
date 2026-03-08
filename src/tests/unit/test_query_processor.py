@@ -151,6 +151,12 @@ class TestQueryProcessor(unittest.TestCase):
             mock_client.models.embed_content.call_count, EMBEDDING_MAX_RETRIES
         )
 
+    def test_embedding_model_is_configurable(self):
+        """Regression: the embedding model must come from GEMINI_EMBEDDING_MODEL
+        and match what the document_processor uses."""
+        import query_processor.query_processor as qp
+        self.assertEqual(qp.GEMINI_EMBEDDING_MODEL, "test-embedding-model")
+
     @patch("query_processor.query_processor.embed_query")
     def test_handler_embedding_failure(self, mock_embed):
         """Test the handler returns a clear 503 when query embedding fails."""

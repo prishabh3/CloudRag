@@ -38,13 +38,17 @@ DB_SECRET_ARN = os.environ.get('DB_SECRET_ARN')
 GEMINI_SECRET_ARN = os.environ.get('GEMINI_SECRET_ARN')
 STAGE = os.environ.get('STAGE')
 
-GEMINI_EMBEDDING_MODEL = os.environ.get('GEMINI_EMBEDDING_MODEL')
+# The embedding model must match the one used by the query_processor, otherwise
+# stored document vectors and query vectors live in different embedding spaces
+# and similarity search silently returns meaningless results. It is configured
+# in one place (the GEMINI_EMBEDDING_MODEL env var) with a 768-dim default that
+# matches the VECTOR(768) column in the schema.
+GEMINI_EMBEDDING_MODEL = os.environ.get('GEMINI_EMBEDDING_MODEL', 'text-embedding-004')
 TEMPERATURE = float(os.environ.get('TEMPERATURE'))
 MAX_OUTPUT_TOKENS = int(os.environ.get('MAX_OUTPUT_TOKENS'))
 TOP_K = int(os.environ.get('TOP_K'))
 TOP_P = float(os.environ.get('TOP_P'))
 SIMILARITY_THRESHOLD = float(os.environ.get('SIMILARITY_THRESHOLD'))
-GEMINI_EMBEDDING_MODEL = "text-embedding-004"
 
 # Embedding retry configuration
 EMBEDDING_MAX_RETRIES = int(os.environ.get('EMBEDDING_MAX_RETRIES', '3'))
