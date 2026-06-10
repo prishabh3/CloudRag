@@ -40,6 +40,10 @@ TOP_P = float(os.environ.get('TOP_P'))
 ENABLE_EVALUATION = os.environ.get('ENABLE_EVALUATION', 'true').lower() == 'true'
 GEMINI_MODEL = "gemini-2.0-flash"
 
+# Restrict CORS to a configured origin. Defaults to "*" for local/dev use;
+# set CORS_ALLOW_ORIGIN to your UI origin in staging/production.
+CORS_ALLOW_ORIGIN = os.environ.get('CORS_ALLOW_ORIGIN', '*')
+
 # MCP Configuration
 MCP_TIMEOUT = int(os.environ.get('MCP_TIMEOUT', '60'))
 RAG_CONFIDENCE_THRESHOLD = float(os.environ.get('RAG_CONFIDENCE_THRESHOLD', '0.7'))
@@ -331,25 +335,27 @@ def similarity_search(query_embedding: List[float], user_id: str, limit: int = 5
         cursor = conn.cursor()
         vector_str = '[' + ','.join([str(x) for x in query_embedding]) + ']'
 
-        cursor.execute(f"""
-            SELECT 
+        # Pass the vector as a bound parameter (%s::vector) rather than
+        # interpolating it into the SQL string.
+        cursor.execute("""
+            SELECT
                 c.chunk_id,
                 c.document_id,
                 c.user_id,
                 c.content,
                 c.metadata,
                 d.file_name,
-                1 - (c.embedding <=> '{vector_str}'::vector) AS similarity_score
-            FROM 
+                1 - (c.embedding <=> %s::vector) AS similarity_score
+            FROM
                 chunks c
-            JOIN 
+            JOIN
                 documents d ON c.document_id = d.document_id
-            WHERE 
+            WHERE
                 c.user_id = %s
-            ORDER BY 
-                c.embedding <=> '{vector_str}'::vector
+            ORDER BY
+                c.embedding <=> %s::vector
             LIMIT %s
-        """, (user_id, limit))
+        """, (vector_str, user_id, vector_str, limit))
 
         rows = cursor.fetchall()
         results = []
@@ -658,7 +664,7 @@ def handler(event, context):
                 'statusCode': 200,
                 'headers': {
                     'Content-Type': 'application/json',
-                    'Access-Control-Allow-Origin': '*'
+                    'Access-Control-Allow-Origin': CORS_ALLOW_ORIGIN
                 },
                 'body': json.dumps({
                     'message': 'Enhanced query processor with stateless agentic RAG is healthy',
@@ -672,7 +678,7 @@ def handler(event, context):
         if not query:
             return {
                 'statusCode': 400,
-                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': CORS_ALLOW_ORIGIN},
                 'body': json.dumps({'message': 'Query is required'})
             }
 
@@ -688,7 +694,7 @@ def handler(event, context):
             logger.error(f"Query embedding failed: {str(e)}")
             return {
                 'statusCode': 503,
-                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': CORS_ALLOW_ORIGIN},
                 'body': json.dumps({
                     'message': 'Could not generate an embedding for the query. Please try again shortly.'
                 })
@@ -740,7 +746,7 @@ def handler(event, context):
 
         return {
             'statusCode': 200,
-            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': CORS_ALLOW_ORIGIN},
             'body': json.dumps({
                 'query': query,
                 'response': response,
@@ -769,7 +775,7 @@ def handler(event, context):
         logger.error(f"Traceback: {traceback.format_exc()}")
         return {
             'statusCode': 500,
-            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-            'body': json.dumps({'message': f"Internal error: {str(e)}"})
+            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': CORS_ALLOW_ORIGIN},
+            'body': json.dumps({'message': 'Internal server error'})
         }
     

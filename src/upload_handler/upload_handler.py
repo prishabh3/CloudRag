@@ -26,6 +26,10 @@ METADATA_TABLE = os.environ.get('METADATA_TABLE')
 DB_SECRET_ARN = os.environ.get('DB_SECRET_ARN')
 STAGE = os.environ.get('STAGE')
 
+# Restrict CORS to a configured origin. Defaults to "*" for local/dev use;
+# set CORS_ALLOW_ORIGIN to your UI origin in staging/production.
+CORS_ALLOW_ORIGIN = os.environ.get('CORS_ALLOW_ORIGIN', '*')
+
 def get_postgres_credentials():
     """
     Get PostgreSQL credentials from Secrets Manager.
@@ -86,7 +90,7 @@ def _json_response(status_code, payload):
         'statusCode': status_code,
         'headers': {
             'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*'
+            'Access-Control-Allow-Origin': CORS_ALLOW_ORIGIN
         },
         'body': json.dumps(payload)
     }
@@ -152,7 +156,7 @@ def list_documents(user_id):
         })
     except Exception as e:
         logger.error(f"Error listing documents: {str(e)}")
-        return _json_response(500, {'message': f"Error listing documents: {str(e)}"})
+        return _json_response(500, {'message': 'Error listing documents'})
 
 
 def delete_document(user_id, document_id):
@@ -262,7 +266,7 @@ def handler(event, context):
                 'statusCode': 200,
                 'headers': {
                     'Content-Type': 'application/json',
-                    'Access-Control-Allow-Origin': '*'
+                    'Access-Control-Allow-Origin': CORS_ALLOW_ORIGIN
                 },
                 'body': json.dumps({
                     'message': 'Upload handler is healthy',
@@ -288,7 +292,7 @@ def handler(event, context):
                 'statusCode': 400,
                 'headers': {
                     'Content-Type': 'application/json',
-                    'Access-Control-Allow-Origin': '*'
+                    'Access-Control-Allow-Origin': CORS_ALLOW_ORIGIN
                 },
                 'body': json.dumps({
                     'message': 'File content and name are required'
@@ -366,7 +370,7 @@ def handler(event, context):
             'statusCode': 200,
             'headers': {
                 'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
+                'Access-Control-Allow-Origin': CORS_ALLOW_ORIGIN
             },
             'body': json.dumps({
                 'message': 'File uploaded successfully',
@@ -381,9 +385,9 @@ def handler(event, context):
             'statusCode': 500,
             'headers': {
                 'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
+                'Access-Control-Allow-Origin': CORS_ALLOW_ORIGIN
             },
             'body': json.dumps({
-                'message': f"Error uploading file: {str(e)}"
+                'message': 'Error uploading file. Please try again.'
             })
         }

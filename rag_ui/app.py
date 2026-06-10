@@ -88,9 +88,9 @@ def get_headers():
     elif st.session_state.get("api_key"):
         headers["x-api-key"] = st.session_state.api_key
     
-    # Log headers for debugging (remove sensitive info in production)
-    logger.info(f"Request headers (partial): {dict((k, v[:20] + '...' if k == 'Authorization' and v else v) for k, v in headers.items())}")
-    
+    # Never log Authorization/token values.
+    logger.info("Request headers prepared (auth token redacted)")
+
     return headers
 
 # Function to validate email format
@@ -136,12 +136,8 @@ def register_user(email, password, name=""):
             headers={"Content-Type": "application/json"}
         )
         
-        # Log response details for debugging
+        # Log status only; response bodies may contain user data.
         logger.info(f"Register response status: {response.status_code}")
-        try:
-            logger.info(f"Register response body: {response.json()}")
-        except:
-            logger.info(f"Register response text: {response.text}")
         
         if response.status_code == 200:
             result = response.json()
@@ -170,12 +166,8 @@ def verify_user(email, confirmation_code):
             headers={"Content-Type": "application/json"}
         )
         
-        # Log response details for debugging
+        # Log status only; response bodies may contain user data.
         logger.info(f"Verify response status: {response.status_code}")
-        try:
-            logger.info(f"Verify response body: {response.json()}")
-        except:
-            logger.info(f"Verify response text: {response.text}")
         
         if response.status_code == 200:
             result = response.json()
@@ -270,12 +262,8 @@ def refresh_token_func(refresh_token_value):
             headers={"Content-Type": "application/json"}
         )
         
-        # Log response details for debugging
+        # Log status only; the response body contains access/refresh tokens.
         logger.info(f"Refresh token response status: {response.status_code}")
-        try:
-            logger.info(f"Refresh token response body: {response.json()}")
-        except:
-            logger.info(f"Refresh token response text: {response.text}")
         
         if response.status_code == 200:
             result = response.json()
@@ -317,12 +305,8 @@ def forgot_password(email):
             headers={"Content-Type": "application/json"}
         )
         
-        # Log response details for debugging
+        # Log status only; response bodies may contain user data.
         logger.info(f"Forgot password response status: {response.status_code}")
-        try:
-            logger.info(f"Forgot password response body: {response.json()}")
-        except:
-            logger.info(f"Forgot password response text: {response.text}")
         
         if response.status_code == 200:
             result = response.json()
@@ -352,12 +336,8 @@ def confirm_forgot_password(email, confirmation_code, new_password):
             headers={"Content-Type": "application/json"}
         )
         
-        # Log response details for debugging
+        # Log status only; response bodies may contain user data.
         logger.info(f"Confirm forgot password response status: {response.status_code}")
-        try:
-            logger.info(f"Confirm forgot password response body: {response.json()}")
-        except:
-            logger.info(f"Confirm forgot password response text: {response.text}")
         
         if response.status_code == 200:
             result = response.json()
@@ -896,23 +876,17 @@ def query_documents(selected_model, query_text, user_id, ground_truth=None, enab
     try:
         query_url = f"{API_ENDPOINTS['base_url']}{API_ENDPOINTS['query']}"
         
-        # Log request details
+        # Log the destination only; the payload may contain sensitive query text.
         logger.info(f"Sending query request to: {query_url}")
-        logger.info(f"Query payload: {payload}")
-        
+
         response = requests.post(
             query_url,
             json=payload,
             headers=get_headers()
         )
-        
-        # Log response details
+
+        # Log status only; response bodies contain retrieved document content.
         logger.info(f"Query response status: {response.status_code}")
-        logger.info(f"Query response headers: {dict(response.headers)}")
-        try:
-            logger.info(f"Query response body: {response.json()}")
-        except:
-            logger.info(f"Query response text: {response.text}")
         
         if response.status_code == 200:
             result = response.json()

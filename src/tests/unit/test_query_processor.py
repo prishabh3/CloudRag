@@ -204,8 +204,11 @@ class TestQueryProcessor(unittest.TestCase):
         
         # Verify SQL query execution
         mock_cursor.execute.assert_called_once()
-        # Verify query contains the user_id parameter
-        mock_cursor.execute.assert_called_with(unittest.mock.ANY, ("user-1", 2))
+        # The embedding vector is passed as a bound parameter (%s::vector),
+        # never interpolated into the SQL string.
+        sql, params = mock_cursor.execute.call_args[0]
+        self.assertIn("%s::vector", sql)
+        self.assertEqual(params, ("[0.1,0.2,0.3]", "user-1", "[0.1,0.2,0.3]", 2))
 
     @patch("query_processor.query_processor.client")
     def test_generate_response(self, mock_client):
@@ -366,7 +369,8 @@ class TestQueryProcessor(unittest.TestCase):
         # Verify results
         self.assertEqual(response["statusCode"], 500)
         response_body = json.loads(response["body"])
-        self.assertTrue("Internal error" in response_body["message"])
+        # The client receives a generic message; internal error text is only logged.
+        self.assertEqual(response_body["message"], "Internal server error")
 
 
 if __name__ == "__main__":

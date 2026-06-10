@@ -38,6 +38,10 @@ DB_SECRET_ARN = os.environ.get('DB_SECRET_ARN')
 GEMINI_SECRET_ARN = os.environ.get('GEMINI_SECRET_ARN')
 STAGE = os.environ.get('STAGE')
 
+# Restrict CORS to a configured origin. Defaults to "*" for local/dev use;
+# set CORS_ALLOW_ORIGIN to your UI origin in staging/production.
+CORS_ALLOW_ORIGIN = os.environ.get('CORS_ALLOW_ORIGIN', '*')
+
 # The embedding model must match the one used by the query_processor, otherwise
 # stored document vectors and query vectors live in different embedding spaces
 # and similarity search silently returns meaningless results. It is configured
@@ -449,7 +453,7 @@ def handler(event, context):
                 'statusCode': 200,
                 'headers': {
                     'Content-Type': 'application/json',
-                    'Access-Control-Allow-Origin': '*'
+                    'Access-Control-Allow-Origin': CORS_ALLOW_ORIGIN
                 },
                 'body': json.dumps({
                     'message': 'Document processor is healthy',
@@ -473,7 +477,7 @@ def handler(event, context):
                 'statusCode': 200,
                 'headers': {
                     'Content-Type': 'application/json',
-                    'Access-Control-Allow-Origin': '*'
+                    'Access-Control-Allow-Origin': CORS_ALLOW_ORIGIN
                 },
                 'body': json.dumps({
                     'message': 'Document processor is healthy',
@@ -565,6 +569,6 @@ def handler(event, context):
         return {
             'statusCode': 500,
             'body': json.dumps({
-                'message': f"Error processing document: {str(e)}"
+                'message': 'Error processing document'
             })
         }

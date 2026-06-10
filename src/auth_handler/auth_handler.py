@@ -21,6 +21,10 @@ cognito = boto3.client('cognito-idp')
 USER_POOL_ID = os.environ.get('USER_POOL_ID')
 CLIENT_ID = os.environ.get('CLIENT_ID')
 
+# Restrict CORS to a configured origin. Defaults to "*" for local/dev use;
+# set CORS_ALLOW_ORIGIN to your UI origin in staging/production.
+CORS_ALLOW_ORIGIN = os.environ.get('CORS_ALLOW_ORIGIN', '*')
+
 def handler(event, context):
     """
     Lambda function to handle authentication operations.
@@ -60,7 +64,7 @@ def handler(event, context):
                 'statusCode': 200,
                 'headers': {
                     'Content-Type': 'application/json',
-                    'Access-Control-Allow-Origin': '*'
+                    'Access-Control-Allow-Origin': CORS_ALLOW_ORIGIN
                 },
                 'body': json.dumps({
                     'message': 'Authentication service is healthy'
@@ -75,7 +79,7 @@ def handler(event, context):
                 'statusCode': 400,
                 'headers': {
                     'Content-Type': 'application/json',
-                    'Access-Control-Allow-Origin': '*'
+                    'Access-Control-Allow-Origin': CORS_ALLOW_ORIGIN
                 },
                 'body': json.dumps({
                     'message': 'Operation is required'
@@ -100,7 +104,7 @@ def handler(event, context):
                 'statusCode': 400,
                 'headers': {
                     'Content-Type': 'application/json',
-                    'Access-Control-Allow-Origin': '*'
+                    'Access-Control-Allow-Origin': CORS_ALLOW_ORIGIN
                 },
                 'body': json.dumps({
                     'message': f'Unknown operation: {operation}'
@@ -113,10 +117,10 @@ def handler(event, context):
             'statusCode': 500,
             'headers': {
                 'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
+                'Access-Control-Allow-Origin': CORS_ALLOW_ORIGIN
             },
             'body': json.dumps({
-                'message': f"Error processing authentication: {str(e)}"
+                'message': 'Error processing authentication'
             })
         }
 
@@ -139,7 +143,7 @@ def register_user(params):
             'statusCode': 400,
             'headers': {
                 'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
+                'Access-Control-Allow-Origin': CORS_ALLOW_ORIGIN
             },
             'body': json.dumps({
                 'message': 'Email and password are required'
@@ -173,7 +177,7 @@ def register_user(params):
             'statusCode': 200,
             'headers': {
                 'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
+                'Access-Control-Allow-Origin': CORS_ALLOW_ORIGIN
             },
             'body': json.dumps({
                 'message': 'User registered successfully. Please check your email for verification code.',
@@ -186,7 +190,7 @@ def register_user(params):
             'statusCode': 400,
             'headers': {
                 'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
+                'Access-Control-Allow-Origin': CORS_ALLOW_ORIGIN
             },
             'body': json.dumps({
                 'message': 'User with this email already exists.'
@@ -198,7 +202,7 @@ def register_user(params):
             'statusCode': 400,
             'headers': {
                 'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
+                'Access-Control-Allow-Origin': CORS_ALLOW_ORIGIN
             },
             'body': json.dumps({
                 'message': str(e)
@@ -211,7 +215,7 @@ def register_user(params):
             'statusCode': 500,
             'headers': {
                 'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
+                'Access-Control-Allow-Origin': CORS_ALLOW_ORIGIN
             },
             'body': json.dumps({
                 'message': f"Error registering user: {str(e)}"
@@ -236,7 +240,7 @@ def verify_user(params):
             'statusCode': 400,
             'headers': {
                 'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
+                'Access-Control-Allow-Origin': CORS_ALLOW_ORIGIN
             },
             'body': json.dumps({
                 'message': 'Email and confirmation code are required'
@@ -255,7 +259,7 @@ def verify_user(params):
             'statusCode': 200,
             'headers': {
                 'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
+                'Access-Control-Allow-Origin': CORS_ALLOW_ORIGIN
             },
             'body': json.dumps({
                 'message': 'User verified successfully.'
@@ -267,7 +271,7 @@ def verify_user(params):
             'statusCode': 400,
             'headers': {
                 'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
+                'Access-Control-Allow-Origin': CORS_ALLOW_ORIGIN
             },
             'body': json.dumps({
                 'message': 'Invalid verification code.'
@@ -279,7 +283,7 @@ def verify_user(params):
             'statusCode': 400,
             'headers': {
                 'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
+                'Access-Control-Allow-Origin': CORS_ALLOW_ORIGIN
             },
             'body': json.dumps({
                 'message': 'Verification code has expired.'
@@ -292,7 +296,7 @@ def verify_user(params):
             'statusCode': 500,
             'headers': {
                 'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
+                'Access-Control-Allow-Origin': CORS_ALLOW_ORIGIN
             },
             'body': json.dumps({
                 'message': f"Error verifying user: {str(e)}"
@@ -317,7 +321,7 @@ def login_user(params):
             'statusCode': 400,
             'headers': {
                 'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
+                'Access-Control-Allow-Origin': CORS_ALLOW_ORIGIN
             },
             'body': json.dumps({
                 'message': 'Email and password are required'
@@ -346,7 +350,7 @@ def login_user(params):
             'statusCode': 200,
             'headers': {
                 'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
+                'Access-Control-Allow-Origin': CORS_ALLOW_ORIGIN
             },
             'body': json.dumps({
                 'message': 'Login successful.',
@@ -363,7 +367,7 @@ def login_user(params):
             'statusCode': 400,
             'headers': {
                 'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
+                'Access-Control-Allow-Origin': CORS_ALLOW_ORIGIN
             },
             'body': json.dumps({
                 'message': 'User is not confirmed. Please verify your email first.',
@@ -376,7 +380,7 @@ def login_user(params):
             'statusCode': 401,
             'headers': {
                 'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
+                'Access-Control-Allow-Origin': CORS_ALLOW_ORIGIN
             },
             'body': json.dumps({
                 'message': 'Incorrect username or password.'
@@ -389,7 +393,7 @@ def login_user(params):
             'statusCode': 500,
             'headers': {
                 'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
+                'Access-Control-Allow-Origin': CORS_ALLOW_ORIGIN
             },
             'body': json.dumps({
                 'message': f"Error logging in user: {str(e)}"
@@ -413,7 +417,7 @@ def forgot_password(params):
             'statusCode': 400,
             'headers': {
                 'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
+                'Access-Control-Allow-Origin': CORS_ALLOW_ORIGIN
             },
             'body': json.dumps({
                 'message': 'Email is required'
@@ -431,7 +435,7 @@ def forgot_password(params):
             'statusCode': 200,
             'headers': {
                 'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
+                'Access-Control-Allow-Origin': CORS_ALLOW_ORIGIN
             },
             'body': json.dumps({
                 'message': 'Password reset initiated. Please check your email for the confirmation code.'
@@ -444,7 +448,7 @@ def forgot_password(params):
             'statusCode': 200,
             'headers': {
                 'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
+                'Access-Control-Allow-Origin': CORS_ALLOW_ORIGIN
             },
             'body': json.dumps({
                 'message': 'If a user with this email exists, a password reset code has been sent.'
@@ -457,7 +461,7 @@ def forgot_password(params):
             'statusCode': 500,
             'headers': {
                 'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
+                'Access-Control-Allow-Origin': CORS_ALLOW_ORIGIN
             },
             'body': json.dumps({
                 'message': f"Error initiating forgot password: {str(e)}"
@@ -483,7 +487,7 @@ def confirm_forgot_password(params):
             'statusCode': 400,
             'headers': {
                 'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
+                'Access-Control-Allow-Origin': CORS_ALLOW_ORIGIN
             },
             'body': json.dumps({
                 'message': 'Email, confirmation code, and new password are required'
@@ -503,7 +507,7 @@ def confirm_forgot_password(params):
             'statusCode': 200,
             'headers': {
                 'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
+                'Access-Control-Allow-Origin': CORS_ALLOW_ORIGIN
             },
             'body': json.dumps({
                 'message': 'Password has been reset successfully.'
@@ -515,7 +519,7 @@ def confirm_forgot_password(params):
             'statusCode': 400,
             'headers': {
                 'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
+                'Access-Control-Allow-Origin': CORS_ALLOW_ORIGIN
             },
             'body': json.dumps({
                 'message': 'Invalid confirmation code.'
@@ -527,7 +531,7 @@ def confirm_forgot_password(params):
             'statusCode': 400,
             'headers': {
                 'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
+                'Access-Control-Allow-Origin': CORS_ALLOW_ORIGIN
             },
             'body': json.dumps({
                 'message': 'Confirmation code has expired.'
@@ -539,7 +543,7 @@ def confirm_forgot_password(params):
             'statusCode': 400,
             'headers': {
                 'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
+                'Access-Control-Allow-Origin': CORS_ALLOW_ORIGIN
             },
             'body': json.dumps({
                 'message': str(e)
@@ -552,7 +556,7 @@ def confirm_forgot_password(params):
             'statusCode': 500,
             'headers': {
                 'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
+                'Access-Control-Allow-Origin': CORS_ALLOW_ORIGIN
             },
             'body': json.dumps({
                 'message': f"Error confirming forgot password: {str(e)}"
@@ -576,7 +580,7 @@ def refresh_token(params):
             'statusCode': 400,
             'headers': {
                 'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
+                'Access-Control-Allow-Origin': CORS_ALLOW_ORIGIN
             },
             'body': json.dumps({
                 'message': 'Refresh token is required'
@@ -603,7 +607,7 @@ def refresh_token(params):
             'statusCode': 200,
             'headers': {
                 'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
+                'Access-Control-Allow-Origin': CORS_ALLOW_ORIGIN
             },
             'body': json.dumps({
                 'message': 'Tokens refreshed successfully.',
@@ -619,7 +623,7 @@ def refresh_token(params):
             'statusCode': 401,
             'headers': {
                 'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
+                'Access-Control-Allow-Origin': CORS_ALLOW_ORIGIN
             },
             'body': json.dumps({
                 'message': 'Refresh token is invalid or expired.'
@@ -632,7 +636,7 @@ def refresh_token(params):
             'statusCode': 500,
             'headers': {
                 'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
+                'Access-Control-Allow-Origin': CORS_ALLOW_ORIGIN
             },
             'body': json.dumps({
                 'message': f"Error refreshing tokens: {str(e)}"
