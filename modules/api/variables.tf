@@ -68,3 +68,9 @@ variable "cognito_user_pool_arn" {
 variable "cognito_domain" {
   type = string
 }
+
+variable "cors_allow_origin" {
+  description = "Allowed CORS origin for API Gateway CORS/preflight responses. Use \"*\" for local/dev; set to your UI origin in production."
+  type        = string
+  default     = "*"
+}

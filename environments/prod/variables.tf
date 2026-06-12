@@ -169,6 +169,12 @@ variable "github_repo" {
   default     = "prishabh3/CloudRag"
 }
 
+variable "cors_allow_origin" {
+  description = "Allowed CORS origin for API Gateway and Lambda responses. Use \"*\" for local/dev; set to your UI origin in production."
+  type        = string
+  default     = "*"
+}
+
 variable "github_branch" {
   description = "GitHub Branch"
   type        = string

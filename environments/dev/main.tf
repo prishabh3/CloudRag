@@ -144,6 +144,7 @@ module "api" {
   cognito_app_client_id = module.auth.cognito_app_client_id
   cognito_user_pool_arn = module.auth.cognito_user_pool_arn
   cognito_domain         = module.auth.cognito_domain
+  cors_allow_origin      = var.cors_allow_origin
 
   
   # Make sure compute and auth modules are created first
@@ -176,6 +177,7 @@ module "compute" {
   cognito_user_pool_id    = module.auth.cognito_user_pool_id
   cognito_app_client_id   = module.auth.cognito_app_client_id
   cognito_user_pool_arn   = module.auth.cognito_user_pool_arn
+  cors_allow_origin       = var.cors_allow_origin
   
   depends_on = [module.storage, module.vpc, module.database, module.auth]
 }

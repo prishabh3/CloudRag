@@ -12,7 +12,7 @@ github_repo        = "prishabh3/CloudRag"
 github_branch      = "staging"
 
 # Monitoring
-alert_email = "rajsrivastava2@gmail.com"
+alert_email = "3prishabh@gmail.com"
 
 # VPC settings
 vpc_cidr   = "10.0.0.0/16"

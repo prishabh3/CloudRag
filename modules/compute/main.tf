@@ -195,9 +195,10 @@ resource "aws_lambda_function" "auth_handler" {
 
   environment {
     variables = {
-      USER_POOL_ID = var.cognito_user_pool_id
-      CLIENT_ID    = var.cognito_app_client_id
-      STAGE        = var.stage
+      USER_POOL_ID      = var.cognito_user_pool_id
+      CLIENT_ID         = var.cognito_app_client_id
+      STAGE             = var.stage
+      CORS_ALLOW_ORIGIN = var.cors_allow_origin
     }
   }
 
@@ -227,6 +228,7 @@ resource "aws_lambda_function" "document_processor" {
       TOP_K                    = 40
       TOP_P                    = 0.8
       SIMILARITY_THRESHOLD     = 0.7
+      CORS_ALLOW_ORIGIN        = var.cors_allow_origin
     }
   }
 
@@ -265,6 +267,7 @@ resource "aws_lambda_function" "query_processor" {
       TOP_K                    = 40
       TOP_P                    = 0.8
       SIMILARITY_THRESHOLD     = 0.7
+      CORS_ALLOW_ORIGIN        = var.cors_allow_origin
 
       # MCP Configuration
       MCP_TIMEOUT              = var.mcp_timeout
@@ -297,10 +300,11 @@ resource "aws_lambda_function" "upload_handler" {
 
   environment {
     variables = {
-      DOCUMENTS_BUCKET = var.documents_bucket
-      METADATA_TABLE   = var.metadata_table
-      STAGE            = var.stage
-      DB_SECRET_ARN    = var.db_secret_arn
+      DOCUMENTS_BUCKET  = var.documents_bucket
+      METADATA_TABLE    = var.metadata_table
+      STAGE             = var.stage
+      DB_SECRET_ARN     = var.db_secret_arn
+      CORS_ALLOW_ORIGIN = var.cors_allow_origin
     }
   }
 

@@ -85,6 +85,12 @@ variable "gemini_embedding_model" {
   default     = "text-embedding-004"
 }
 
+variable "cors_allow_origin" {
+  description = "Allowed CORS origin returned by the Lambda responses. Use \"*\" for local/dev; set to your UI origin (e.g. https://app.example.com) in production."
+  type        = string
+  default     = "*"
+}
+
 variable "gemini_api_key" {
   description = "Google's Gemini API Key"
   type        = string

@@ -112,7 +112,7 @@ resource "aws_api_gateway_integration_response" "auth" {
   status_code = aws_api_gateway_method_response.auth.status_code
   
   response_parameters = {
-    "method.response.header.Access-Control-Allow-Origin" = "'*'"
+    "method.response.header.Access-Control-Allow-Origin" = "'${var.cors_allow_origin}'"
   }
   
   depends_on = [
@@ -168,7 +168,7 @@ resource "aws_api_gateway_integration_response" "auth_options" {
   response_parameters = {
     "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'",
     "method.response.header.Access-Control-Allow-Methods" = "'GET,POST,OPTIONS'",
-    "method.response.header.Access-Control-Allow-Origin"  = "'*'"
+    "method.response.header.Access-Control-Allow-Origin"  = "'${var.cors_allow_origin}'"
   }
   
   depends_on = [
@@ -229,7 +229,7 @@ resource "aws_api_gateway_integration_response" "query" {
   status_code = aws_api_gateway_method_response.query.status_code
   
   response_parameters = {
-    "method.response.header.Access-Control-Allow-Origin" = "'*'"
+    "method.response.header.Access-Control-Allow-Origin" = "'${var.cors_allow_origin}'"
   }
   
   depends_on = [
@@ -287,7 +287,7 @@ resource "aws_api_gateway_integration_response" "upload" {
   status_code = aws_api_gateway_method_response.upload.status_code
   
   response_parameters = {
-    "method.response.header.Access-Control-Allow-Origin" = "'*'"
+    "method.response.header.Access-Control-Allow-Origin" = "'${var.cors_allow_origin}'"
   }
   
   depends_on = [
@@ -344,7 +344,7 @@ resource "aws_api_gateway_integration_response" "query_options" {
   response_parameters = {
     "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'",
     "method.response.header.Access-Control-Allow-Methods" = "'GET,POST,OPTIONS'",
-    "method.response.header.Access-Control-Allow-Origin"  = "'*'"
+    "method.response.header.Access-Control-Allow-Origin"  = "'${var.cors_allow_origin}'"
   }
   
   depends_on = [
@@ -400,7 +400,7 @@ resource "aws_api_gateway_integration_response" "upload_options" {
   response_parameters = {
     "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'",
     "method.response.header.Access-Control-Allow-Methods" = "'GET,POST,OPTIONS'",
-    "method.response.header.Access-Control-Allow-Origin"  = "'*'"
+    "method.response.header.Access-Control-Allow-Origin"  = "'${var.cors_allow_origin}'"
   }
   
   depends_on = [

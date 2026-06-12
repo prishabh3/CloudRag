@@ -11,8 +11,11 @@ lambda_timeout     = 150
 github_repo        = "prishabh3/CloudRag"
 github_branch      = "main"
 
+# CORS: in production, restrict the API/Lambda responses to your UI origin, e.g.:
+# cors_allow_origin = "https://cloudrag.example.com"
+
 # Monitoring
-alert_email = "rajsrivastava2@gmail.com"
+alert_email = "3prishabh@gmail.com"
 
 # VPC settings
 vpc_cidr   = "10.0.0.0/16"

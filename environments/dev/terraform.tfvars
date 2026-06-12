@@ -24,7 +24,7 @@ github_branch = "develop"
 # -------------------------
 # Monitoring
 # -------------------------
-alert_email = "rajsrivastava2@gmail.com"
+alert_email = "3prishabh@gmail.com"
 
 # -------------------------
 # VPC Settings

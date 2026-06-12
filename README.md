@@ -222,6 +222,7 @@ Key environment variables consumed by the Lambdas (set via Terraform):
 | `ENABLE_EVALUATION` | Toggle RAG answer evaluation |
 | `RAG_CONFIDENCE_THRESHOLD`, `MIN_CONTEXT_LENGTH` | When to trigger web-search fallback |
 | `EMBEDDING_MAX_RETRIES`, `EMBEDDING_RETRY_DELAY` | Embedding retry/backoff |
+| `CORS_ALLOW_ORIGIN` | Allowed CORS origin (set to your UI origin in production; `*` for local/dev) |
 
 ## 🧪 Testing
 
