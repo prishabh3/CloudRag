@@ -54,9 +54,23 @@ jobs:
       aws_region: ${{ steps.read-vars.outputs.aws_region }}
       bastion_allowed_cidr: ${{ steps.read-vars.outputs.bastion_allowed_cidr }}
       enable_lifecycle_rules: ${{ steps.read-vars.outputs.enable_lifecycle_rules }}
+      deploy_enabled: ${{ steps.check-secrets.outputs.deploy_enabled }}
     steps:
       - uses: actions/checkout@v4
-      
+
+      # Deployment jobs need AWS credentials. When they are not configured
+      # (e.g. a fresh fork), skip Terraform plan/apply instead of failing.
+      - id: check-secrets
+        env:
+          AWS_KEY: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        run: |
+          if [ -n "$AWS_KEY" ]; then
+            echo "deploy_enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "deploy_enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::AWS credentials not configured; skipping Terraform plan/apply and integration tests."
+          fi
+
       - id: set-env
         run: |
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
@@ -125,6 +139,7 @@ jobs:
     env:
       PROJECT_NAME: ${{ needs.determine_environment.outputs.project_name }}
       AWS_REGION: ${{ needs.determine_environment.outputs.aws_region }}
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -138,6 +153,7 @@ jobs:
       - name: Run tox
         run: tox -e py
       - name: SonarQube Scan
+        if: env.SONAR_TOKEN != ''
         uses: SonarSource/sonarqube-scan-action@v5
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -196,6 +212,7 @@ jobs:
 
   terraform-plan:
     needs: [determine_environment, build_lambda]
+    if: needs.determine_environment.outputs.deploy_enabled == 'true'
     runs-on: ubuntu-latest
     environment: ${{ needs.determine_environment.outputs.environment }}
     env:
@@ -312,7 +329,7 @@ jobs:
   terraform-apply:
     needs: [determine_environment, build_lambda, terraform-plan]
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && needs.determine_environment.outputs.deploy_enabled == 'true'
     environment: ${{ needs.determine_environment.outputs.environment }}
     env:
       PROJECT_NAME: ${{ needs.determine_environment.outputs.project_name }}
