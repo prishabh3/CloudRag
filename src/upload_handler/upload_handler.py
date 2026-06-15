@@ -30,6 +30,11 @@ STAGE = os.environ.get('STAGE')
 # set CORS_ALLOW_ORIGIN to your UI origin in staging/production.
 CORS_ALLOW_ORIGIN = os.environ.get('CORS_ALLOW_ORIGIN', '*')
 
+# Upload constraints. The default 5 MB keeps decoded payloads under the
+# API Gateway (10 MB) and synchronous Lambda (6 MB) limits.
+MAX_UPLOAD_BYTES = int(os.environ.get('MAX_UPLOAD_BYTES', str(5 * 1024 * 1024)))
+ALLOWED_EXTENSIONS = {'pdf', 'txt', 'csv', 'doc', 'docx', 'xls', 'xlsx', 'json', 'md'}
+
 def get_postgres_credentials():
     """
     Get PostgreSQL credentials from Secrets Manager.
@@ -235,6 +240,90 @@ def delete_document(user_id, document_id):
     })
 
 
+def reprocess_document(user_id, document_id):
+    """
+    Re-run processing for a document (typically one whose status is 'failed').
+
+    The document's S3 object is copied onto itself, which re-fires the
+    ObjectCreated event that triggers the document_processor. Existing chunk
+    and document rows are cleared first so reprocessing starts from a clean
+    slate; the S3 object itself is preserved. Scoped to the requesting user.
+
+    Args:
+        user_id (str): The owner of the document
+        document_id (str): The document to reprocess
+
+    Returns:
+        dict: API Gateway response
+    """
+    if not document_id:
+        return _json_response(400, {'message': 'document_id is required'})
+
+    # Look up the document's S3 location (most recent row for this user) and
+    # clear existing rows so reprocessing doesn't duplicate data.
+    bucket = None
+    key = None
+    mime_type = None
+    try:
+        credentials = get_postgres_credentials()
+        conn = get_postgres_connection(credentials)
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
+                """
+                SELECT bucket, key, mime_type
+                FROM documents
+                WHERE document_id = %s AND user_id = %s
+                ORDER BY created_at DESC
+                LIMIT 1
+                """,
+                (document_id, user_id)
+            )
+            row = cursor.fetchone()
+            if row:
+                bucket, key, mime_type = row
+                cursor.execute(
+                    "DELETE FROM chunks WHERE document_id = %s AND user_id = %s",
+                    (document_id, user_id)
+                )
+                cursor.execute(
+                    "DELETE FROM documents WHERE document_id = %s AND user_id = %s",
+                    (document_id, user_id)
+                )
+                conn.commit()
+        finally:
+            cursor.close()
+            conn.close()
+    except Exception as e:
+        logger.error(f"Error preparing reprocess for {document_id}: {str(e)}")
+        return _json_response(500, {'message': 'Error preparing document for reprocessing'})
+
+    if not bucket or not key:
+        return _json_response(404, {
+            'message': 'Document not found for this user',
+            'document_id': document_id
+        })
+
+    # Re-trigger the document_processor by copying the object onto itself.
+    # MetadataDirective=REPLACE is required for a same-key copy.
+    try:
+        s3_client.copy_object(
+            Bucket=bucket,
+            Key=key,
+            CopySource={'Bucket': bucket, 'Key': key},
+            MetadataDirective='REPLACE',
+            ContentType=mime_type or 'application/octet-stream'
+        )
+    except Exception as e:
+        logger.error(f"Error re-triggering processing for {document_id}: {str(e)}")
+        return _json_response(500, {'message': 'Error triggering reprocessing'})
+
+    return _json_response(202, {
+        'message': 'Document reprocessing started',
+        'document_id': document_id
+    })
+
+
 def handler(event, context):
     """
     Lambda function to handle document uploads.
@@ -280,6 +369,8 @@ def handler(event, context):
             return list_documents(body.get('user_id', 'system'))
         if action == 'delete_document':
             return delete_document(body.get('user_id', 'system'), body.get('document_id'))
+        if action == 'reprocess_document':
+            return reprocess_document(body.get('user_id', 'system'), body.get('document_id'))
 
         # Extract file data and metadata
         file_content_base64 = body.get('file_content', '')
@@ -299,13 +390,26 @@ def handler(event, context):
                 })
             }
         
+        # Validate the file type against the allowed extensions
+        extension = file_name.rsplit('.', 1)[-1].lower() if '.' in file_name else ''
+        if extension not in ALLOWED_EXTENSIONS:
+            return _json_response(400, {
+                'message': f"Unsupported file type '.{extension}'. Allowed types: {', '.join(sorted(ALLOWED_EXTENSIONS))}"
+            })
+
         # Determine MIME type if not provided
         if not mime_type:
             mime_type = get_mime_type(file_name)
-            
+
         # Decode base64 content
         file_content = base64.b64decode(file_content_base64)
-        
+
+        # Enforce a maximum upload size (API Gateway / synchronous Lambda limits)
+        if len(file_content) > MAX_UPLOAD_BYTES:
+            return _json_response(413, {
+                'message': f"File too large: {len(file_content)} bytes (maximum {MAX_UPLOAD_BYTES})."
+            })
+
         # Generate a unique document ID
         document_id = str(uuid.uuid4())
         

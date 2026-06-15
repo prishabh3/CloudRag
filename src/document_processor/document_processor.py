@@ -131,6 +131,17 @@ def embed_query(text: str) -> List[float]:
     raise EmbeddingError(str(last_error))
 
 
+def format_vector(embedding: List[float]) -> str:
+    """
+    Format an embedding as a pgvector literal string, e.g. "[0.1,0.2,0.3]".
+
+    pgvector's `vector` type does not accept a raw Python list / Postgres array
+    via psycopg2; it must be given its textual form and cast with ::vector. This
+    matches how the query_processor builds the vector for similarity search.
+    """
+    return '[' + ','.join(str(x) for x in embedding) + ']'
+
+
 def get_postgres_credentials():
     """
     Get PostgreSQL credentials from Secrets Manager.
@@ -375,17 +386,18 @@ def process_document(bucket: str, key: str, document_id: str, user_id: str, mime
                 "page": chunk.metadata.get("page", 0) if hasattr(chunk, "metadata") else 0
             }
             
-            # Store in PostgreSQL
+            # Store in PostgreSQL. The embedding is bound as a pgvector literal
+            # (%s::vector) rather than a raw Python list.
             cursor.execute("""
             INSERT INTO chunks (chunk_id, document_id, user_id, content, metadata, embedding, created_at, updated_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s::vector, %s, %s)
             """, (
                 chunk_id,
                 document_id,
                 user_id,
                 chunk.page_content,
                 json.dumps(metadata),
-                embedding,
+                format_vector(embedding),
                 datetime.now(),
                 datetime.now()
             ))

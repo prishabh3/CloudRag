@@ -15,7 +15,7 @@ os.environ["DB_SECRET_ARN"] = "test-db-secret"
 # Now import the module under test - mocks are already in place globally from conftest
 from upload_handler.upload_handler import (
     handler, get_postgres_credentials, get_postgres_connection, get_mime_type,
-    list_documents, delete_document
+    list_documents, delete_document, reprocess_document
 )
 
 class TestUploadHandler(unittest.TestCase):
@@ -274,11 +274,11 @@ class TestUploadHandler(unittest.TestCase):
         # Mock UUID
         mock_uuid.return_value = "test-doc-id"
         
-        # Create an event with file data and custom MIME type
+        # Create an event with file data and custom MIME type (allowed extension)
         event = {
             "body": json.dumps({
                 "file_content": "ZmlsZSBjb250ZW50",  # base64 "file content"
-                "file_name": "test.custom",
+                "file_name": "test.md",
                 "mime_type": "application/custom",
                 "user_id": "test-user"
             })
@@ -289,14 +289,99 @@ class TestUploadHandler(unittest.TestCase):
 
         # Verify results
         self.assertEqual(response["statusCode"], 200)
-        
+
         # Verify S3 upload with custom MIME type
         self.mock_s3.put_object.assert_called_once_with(
             Bucket="test-bucket",
-            Key="uploads/test-user/test-doc-id/test.custom",
+            Key="uploads/test-user/test-doc-id/test.md",
             Body=b"file content",
             ContentType="application/custom"
         )
+
+    def test_handler_rejects_unsupported_type(self):
+        """Test that an unsupported file extension is rejected with a 400."""
+        event = {
+            "body": json.dumps({
+                "file_content": "ZmlsZSBjb250ZW50",
+                "file_name": "malware.exe",
+                "user_id": "test-user"
+            })
+        }
+
+        response = handler(event, {})
+
+        self.assertEqual(response["statusCode"], 400)
+        self.assertIn("Unsupported file type", json.loads(response["body"])["message"])
+
+    @patch("upload_handler.upload_handler.MAX_UPLOAD_BYTES", 10)
+    @patch("upload_handler.upload_handler.base64.b64decode")
+    def test_handler_rejects_oversized_file(self, mock_b64decode):
+        """Test that a file larger than MAX_UPLOAD_BYTES is rejected with a 413."""
+        mock_b64decode.return_value = b"x" * 100  # exceeds the patched 10-byte limit
+        event = {
+            "body": json.dumps({
+                "file_content": "eHh4",
+                "file_name": "big.pdf",
+                "user_id": "test-user"
+            })
+        }
+
+        response = handler(event, {})
+
+        self.assertEqual(response["statusCode"], 413)
+        self.assertIn("too large", json.loads(response["body"])["message"].lower())
+
+    def test_reprocess_document_missing_id(self):
+        """Test reprocessing without a document_id returns a 400."""
+        response = reprocess_document("user-1", None)
+        self.assertEqual(response["statusCode"], 400)
+
+    @patch("upload_handler.upload_handler.get_postgres_credentials")
+    @patch("upload_handler.upload_handler.get_postgres_connection")
+    def test_reprocess_document_success(self, mock_get_conn, mock_get_creds):
+        """Test reprocessing clears rows and re-triggers via an S3 self-copy."""
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value = mock_cursor
+        mock_get_conn.return_value = mock_conn
+        mock_get_creds.return_value = {"host": "test-host"}
+        mock_cursor.fetchone.return_value = ("test-bucket", "uploads/user-1/doc-1/f.pdf", "application/pdf")
+
+        response = reprocess_document("user-1", "doc-1")
+
+        self.assertEqual(response["statusCode"], 202)
+        self.mock_s3.copy_object.assert_called_once()
+        _, kwargs = self.mock_s3.copy_object.call_args
+        self.assertEqual(kwargs["MetadataDirective"], "REPLACE")
+        self.assertEqual(kwargs["CopySource"], {"Bucket": "test-bucket", "Key": "uploads/user-1/doc-1/f.pdf"})
+
+    @patch("upload_handler.upload_handler.get_postgres_credentials")
+    @patch("upload_handler.upload_handler.get_postgres_connection")
+    def test_reprocess_document_not_found(self, mock_get_conn, mock_get_creds):
+        """Test reprocessing a non-existent document returns a 404."""
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value = mock_cursor
+        mock_get_conn.return_value = mock_conn
+        mock_get_creds.return_value = {"host": "test-host"}
+        mock_cursor.fetchone.return_value = None
+
+        response = reprocess_document("user-1", "missing")
+
+        self.assertEqual(response["statusCode"], 404)
+        self.mock_s3.copy_object.assert_not_called()
+
+    @patch("upload_handler.upload_handler.reprocess_document")
+    def test_handler_routes_reprocess_document(self, mock_reprocess):
+        """Test the handler routes the reprocess_document action."""
+        mock_reprocess.return_value = {"statusCode": 202, "body": "{}"}
+        event = {"body": json.dumps({
+            "action": "reprocess_document", "user_id": "user-1", "document_id": "doc-1"
+        })}
+
+        handler(event, {})
+
+        mock_reprocess.assert_called_once_with("user-1", "doc-1")
 
     @patch("upload_handler.upload_handler.base64.b64decode")
     def test_handler_s3_error(self, mock_b64decode):

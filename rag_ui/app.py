@@ -786,7 +786,28 @@ def delete_user_document(user_id, document_id):
         logger.error(f"Delete document error: {str(e)}")
         return False, f"Error: {str(e)}"
 
-# Function to render the "My Documents" page (list + delete)
+# Function to re-run processing for a document (e.g. one that failed)
+def reprocess_user_document(user_id, document_id):
+    if not check_token_refresh():
+        return False, "Authentication failed."
+
+    payload = {"action": "reprocess_document", "user_id": user_id, "document_id": document_id}
+    upload_url = f"{API_ENDPOINTS['base_url']}{API_ENDPOINTS['upload']}"
+
+    try:
+        response = requests.post(upload_url, json=payload, headers=get_headers())
+        if response.status_code in (200, 202):
+            return True, response.json().get("message", "Reprocessing started.")
+        else:
+            try:
+                return False, response.json().get("message", f"Error: {response.status_code}")
+            except Exception:
+                return False, f"Error: {response.status_code}"
+    except Exception as e:
+        logger.error(f"Reprocess document error: {str(e)}")
+        return False, f"Error: {str(e)}"
+
+# Function to render the "My Documents" page (list + reprocess + delete)
 def render_documents_page():
     st.header("My Documents")
 
@@ -845,6 +866,14 @@ def render_documents_page():
                         st.session_state.pop(confirm_key, None)
                         st.rerun()
                 else:
+                    if st.button("♻️ Reprocess", key=f"reproc_{doc_id}", use_container_width=True,
+                                 help="Re-run text extraction and embedding (useful for failed documents)"):
+                        with st.spinner("Starting reprocessing..."):
+                            ok, msg = reprocess_user_document(docs_user_id, doc_id)
+                        if ok:
+                            st.success(msg)
+                        else:
+                            st.error(msg)
                     if st.button("🗑️ Delete", key=f"del_{doc_id}", use_container_width=True):
                         st.session_state[confirm_key] = True
                         st.rerun()

@@ -22,7 +22,7 @@ os.environ["SIMILARITY_THRESHOLD"] = "0.7"
 from document_processor.document_processor import (
     handler, get_gemini_api_key, get_postgres_credentials, get_postgres_connection,
     embed_query, embed_documents, get_document_loader, chunk_documents, process_document,
-    EmbeddingError, EMBEDDING_MAX_RETRIES
+    EmbeddingError, EMBEDDING_MAX_RETRIES, format_vector
 )
 
 class TestDocumentProcessor(unittest.TestCase):
@@ -338,6 +338,12 @@ class TestDocumentProcessor(unittest.TestCase):
         # status update ('processing' -> 'processed').
         self.assertEqual(mock_cursor.execute.call_count, 4)
 
+        # The chunk embedding is stored as a pgvector literal (%s::vector),
+        # not a raw Python list.
+        chunk_call = mock_cursor.execute.call_args_list[1]
+        self.assertIn("%s::vector", chunk_call[0][0])
+        self.assertEqual(chunk_call[0][1][5], "[0.1,0.2,0.3]")
+
     @patch("document_processor.document_processor.time.sleep")
     def test_embed_query_raises_after_retries(self, mock_sleep):
         """Test embed_query raises EmbeddingError instead of storing a zero-vector."""
@@ -380,6 +386,11 @@ class TestDocumentProcessor(unittest.TestCase):
 
         _, kwargs = self.mock_client.models.embed_content.call_args
         self.assertEqual(kwargs["model"], dp.GEMINI_EMBEDDING_MODEL)
+
+    def test_format_vector(self):
+        """Test embeddings are formatted as pgvector literals."""
+        self.assertEqual(format_vector([0.1, 0.2, 0.3]), "[0.1,0.2,0.3]")
+        self.assertEqual(format_vector([]), "[]")
 
     def test_handler_healthcheck(self):
         """Test the Lambda handler for a health check."""
