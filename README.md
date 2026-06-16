@@ -237,7 +237,7 @@ Unit tests mock all AWS, Gemini, and database access, so they run fully offline.
 
 ## 💰 Cost
 
-Roughly **~$3** to experiment without the AWS Free Tier — primarily RDS and the NAT gateway while they're running. Tear everything down with `terraform destroy` (or the helper in `scripts/cleanup.sh`) when you're done.
+Roughly **~$1–3** to experiment on a new AWS account: most services are Free-Tier eligible (incl. RDS `db.t3.micro`), and the main cost is the NAT gateway (~$1/day) — so deploy, test, and tear down the same day with `terraform destroy` (or the helper in `scripts/cleanup.sh`).
 
 ## 📄 License
 
