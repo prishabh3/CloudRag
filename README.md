@@ -19,7 +19,7 @@ The whole backend is provisioned with Terraform across `dev`, `staging`, and `pr
 ## ✨ Features
 
 - **Serverless backend** — five focused AWS Lambda functions (auth, upload, document processing, querying, DB init).
-- **Vector search** — PostgreSQL RDS with the `pgvector` extension and an IVFFlat index for fast cosine similarity.
+- **Vector search** — PostgreSQL RDS with the `pgvector` extension, and an IVFFlat index for fast cosine similarity.
 - **Grounded generation** — answers produced by Google Gemini using retrieved context.
 - **Agentic web search** — when local retrieval is weak, CloudRAG queries a remote **MCP server** (SerpApi) over streamable HTTP.
 - **Built-in RAG evaluation** — every answer is scored for *relevancy*, *faithfulness*, and (optionally) *context precision*.
