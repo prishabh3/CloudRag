@@ -14,7 +14,7 @@
 
 **CloudRAG** is an end-to-end Retrieval-Augmented Generation platform deployed entirely as **Infrastructure as Code** on AWS. Upload documents, and CloudRAG chunks, embeds, and indexes them into a PostgreSQL vector store. Ask questions in natural language and it retrieves the most relevant passages, generates a grounded answer with Google Gemini, scores the answer's quality, and — when your documents don't contain enough context — falls back to a **real-time web search** via a remote MCP server.
 
-The whole backend is provisioned with Terraform across `dev`, `staging`, and `production` environments, and ships with a Streamlit UI for interacting with it.
+The entire backend is provisioned with Terraform across `dev`, `staging`, and `production` environments, and ships with a Streamlit UI for interacting with it.
 
 ## ✨ Features
 
